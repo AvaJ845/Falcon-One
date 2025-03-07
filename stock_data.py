@@ -1,48 +1,85 @@
 # stock_data.py
+"""
+Stock market data module for Falcon One trading platform.
+Provides functionality for fetching, analyzing and simulating stock market data.
+"""
+
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import streamlit as st
 import time
+import pytz
 
 try:
     import yfinance as yf
 except ImportError:
-    st.error("yfinance package is not installed. Please run: pip install yfinance")
+    st.error("yfinance package not installed. Run: pip install yfinance")
 
 # Initialize session state
 if 'use_mock_data' not in st.session_state:
     st.session_state.use_mock_data = False
 
+def is_market_hours():
+    """Check if current time is during market hours (EST)"""
+    est = pytz.timezone('US/Eastern')
+    now = datetime.now(est)
+    return (
+        now.weekday() < 5 and  # Monday to Friday
+        ((now.hour == 9 and now.minute >= 30) or  # After 9:30 AM
+         (now.hour > 9 and now.hour < 16) or  # 10 AM to 3:59 PM
+         (now.hour == 16 and now.minute == 0))  # At 4:00 PM
+    )
+
+def get_valid_market_time(dt):
+    """Adjust datetime to valid market hours"""
+    est = pytz.timezone('US/Eastern')
+    dt = dt.astimezone(est)
+    if dt.hour < 9 or (dt.hour == 9 and dt.minute < 30):
+        dt = dt.replace(hour=9, minute=30)
+    elif dt.hour >= 16:
+        dt = dt.replace(hour=16, minute=0)
+    return dt
+
 def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5):
     """Fetch stock data with improved error handling"""
     
-    # Check session state for mock data preference
     if st.session_state.get('use_mock_data', False):
         return generate_mock_data(ticker, period, interval)
+    
+    # Handle intraday data during market hours
+    if interval in ["1m", "2m", "5m", "15m", "30m"]:
+        if not is_market_hours() and period == "1d":
+            st.info(f"Market is closed. Using most recent data for {ticker}")
+            # Adjust period to get last available data
+            period = "2d"
     
     for attempt in range(max_retries):
         try:
             stock = yf.Ticker(ticker)
-            df = stock.history(
-                period=period if not start else None,
-                interval=interval,
-                start=start,
-                end=end,
-                timeout=10
-            )
+            
+            if start and end:
+                start = get_valid_market_time(pd.Timestamp(start))
+                end = get_valid_market_time(pd.Timestamp(end))
+                df = stock.history(start=start, end=end, interval=interval, timeout=10)
+            else:
+                df = stock.history(period=period, interval=interval, timeout=10)
             
             if not df.empty and len(df) >= 2:
-                return df
+                return df.copy()  # Return a copy to prevent modifications
             
             time.sleep(2)
+            st.warning(f"Retrying data fetch for {ticker} (Attempt {attempt + 1}/{max_retries})")
+            
         except Exception as e:
             if attempt == max_retries - 1:
-                st.warning(f"Failed to fetch {ticker} data, using mock data")
+                st.warning(f"Failed to fetch {ticker} data: {str(e)}. Using mock data.")
                 return generate_mock_data(ticker, period, interval)
             time.sleep(2)
     
     return generate_mock_data(ticker, period, interval)
+
 
 def generate_mock_data(ticker, period="1d", interval="1m"):
     """

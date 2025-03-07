@@ -5,6 +5,7 @@ numpy
 matplotlib
 plotly
 yfinance
+pytz
 
 # Data analysis and technical indicators
 scipy
