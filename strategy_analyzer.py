@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from stock_data import fetch_stock_data
 
-def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_params, risk_params):
+def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_params, risk_params, use_mock_data=False):
     """
     Backtest a trading strategy on historical data
     
@@ -19,6 +19,7 @@ def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_para
     end_date (str): End date for backtesting (YYYY-MM-DD)
     strategy_params (dict): Strategy-specific parameters
     risk_params (dict): Risk management parameters
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     dict: Backtesting results
@@ -29,7 +30,8 @@ def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_para
             ticker, 
             interval="15m",
             start=start_date,
-            end=end_date
+            end=end_date,
+            use_mock_data=use_mock_data
         )
         
         if stock_data.empty:
@@ -329,6 +331,7 @@ def backtest_ma_crossover(stock_data, strategy_params, risk_params, initial_cash
         'completed_trades': completed_trades,
         'equity_curve': equity_curve
     }
+
 def backtest_rsi_reversal(stock_data, strategy_params, risk_params, initial_cash=100000):
     """
     Backtest RSI Reversal strategy
@@ -784,7 +787,7 @@ def backtest_breakout(stock_data, strategy_params, risk_params, initial_cash=100
             position_value = cash * position_size_pct
             shares = int(position_value / price)
             
-            if shares > 0:
+            if shares > 0 :
                 cash -= shares * price
                 entry_price = price
                 stop_loss = price * (1 - stop_loss_pct)
@@ -908,7 +911,6 @@ def backtest_breakout(stock_data, strategy_params, risk_params, initial_cash=100
         'completed_trades': completed_trades,
         'equity_curve': equity_curve
     }
-
 def backtest_gap_and_go(stock_data, strategy_params, risk_params, initial_cash=100000):
     """
     Backtest Gap and Go strategy
@@ -1308,7 +1310,7 @@ def display_strategy_results(results):
     st.markdown("- Consider combining this strategy with complementary strategies for diversification")
 
 
-def optimize_strategy_parameters(ticker, strategy_type, start_date, end_date, param_grid, risk_params):
+def optimize_strategy_parameters(ticker, strategy_type, start_date, end_date, param_grid, risk_params, use_mock_data=False):
     """
     Optimize strategy parameters using grid search
     
@@ -1319,6 +1321,7 @@ def optimize_strategy_parameters(ticker, strategy_type, start_date, end_date, pa
     end_date (str): End date for backtesting (YYYY-MM-DD)
     param_grid (dict): Dictionary of parameter grids to search
     risk_params (dict): Risk management parameters
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     dict: Best parameters and results
@@ -1357,7 +1360,8 @@ def optimize_strategy_parameters(ticker, strategy_type, start_date, end_date, pa
             start_date=start_date,
             end_date=end_date,
             strategy_params=params,
-            risk_params=risk_params
+            risk_params=risk_params,
+            use_mock_data=use_mock_data
         )
         
         # Skip if backtest failed
@@ -1394,7 +1398,7 @@ def optimize_strategy_parameters(ticker, strategy_type, start_date, end_date, pa
         return None
 
 
-def compare_strategies(ticker, start_date, end_date, strategies, risk_params):
+def compare_strategies(ticker, start_date, end_date, strategies, risk_params, use_mock_data=False):
     """
     Compare multiple trading strategies on the same stock
     
@@ -1404,6 +1408,7 @@ def compare_strategies(ticker, start_date, end_date, strategies, risk_params):
     end_date (str): End date for backtesting (YYYY-MM-DD)
     strategies (list): List of strategy dictionaries with 'name' and 'params'
     risk_params (dict): Risk management parameters
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     dict: Comparison results
@@ -1419,7 +1424,8 @@ def compare_strategies(ticker, start_date, end_date, strategies, risk_params):
             start_date=start_date,
             end_date=end_date,
             strategy_params=strategy['params'],
-            risk_params=risk_params
+            risk_params=risk_params,
+            use_mock_data=use_mock_data
         )
         
         if result:
@@ -1495,7 +1501,6 @@ def display_strategy_comparison(comparison_results):
         
         st.plotly_chart(fig, use_container_width=True)
 
-
 def display_optimization_results(optimization_results):
     """
     Display optimization results
@@ -1566,8 +1571,8 @@ def display_optimization_results(optimization_results):
         st.dataframe(results_df.head(10))
         
         # Visualization of parameter impact
-        st.subheader("Parameter Impact Analysis")
-        
+        st.subheader
+
         # Identify most impactful parameters
         param_keys = list(optimization_results['best_params'].keys())
         
@@ -1633,102 +1638,6 @@ def display_optimization_results(optimization_results):
     3. **Look for Patterns**: Check if certain parameter values consistently perform better
     4. **Combine Strategies**: Consider combining strategies for better overall performance
     """)
-# This is a partial update to strategy_analyzer.py - just updating the key function
 
-def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_params, risk_params, use_mock_data=False):
-    """
-    Backtest a trading strategy on historical data
-    
-    Parameters:
-    ticker (str): Stock ticker symbol
-    strategy_type (str): Type of strategy to backtest
-    start_date (str): Start date for backtesting (YYYY-MM-DD)
-    end_date (str): End date for backtesting (YYYY-MM-DD)
-    strategy_params (dict): Strategy-specific parameters
-    risk_params (dict): Risk management parameters
-    use_mock_data (bool): If True, use mock data instead of real data
-    
-    Returns:
-    dict: Backtesting results
-    """
-    try:
-        # Fetch historical data
-        stock_data = fetch_stock_data(
-            ticker, 
-            interval="15m",
-            start=start_date,
-            end=end_date,
-            use_mock_data=use_mock_data
-        )
-        
-        if stock_data.empty:
-            st.error(f"Could not fetch sufficient data for {ticker}")
-            return None
-        
-        # Add date column for grouping
-        stock_data['date'] = stock_data.index.date
-        
-        # Initialize results
-        trades = []
-        cash = 100000  # Starting capital
-        position = 0   # Current position (number of shares)
-        entry_price = 0  # Entry price for position
-        
-        # Apply the selected strategy
-        if strategy_type == "Moving Average Crossover":
-            results = backtest_ma_crossover(
-                stock_data,
-                strategy_params,
-                risk_params,
-                initial_cash=cash
-            )
-            
-        elif strategy_type == "RSI Reversal":
-            results = backtest_rsi_reversal(
-                stock_data,
-                strategy_params,
-                risk_params,
-                initial_cash=cash
-            )
-            
-        elif strategy_type == "VWAP Bounce":
-            results = backtest_vwap_bounce(
-                stock_data,
-                strategy_params,
-                risk_params,
-                initial_cash=cash
-            )
-            
-        elif strategy_type == "Breakout":
-            results = backtest_breakout(
-                stock_data,
-                strategy_params,
-                risk_params,
-                initial_cash=cash
-            )
-            
-        elif strategy_type == "Gap and Go":
-            results = backtest_gap_and_go(
-                stock_data,
-                strategy_params,
-                risk_params,
-                initial_cash=cash
-            )
-        
-        else:
-            st.error(f"Strategy '{strategy_type}' not implemented")
-            return None
-        
-        # Add strategy parameters to results
-        results['strategy'] = strategy_type
-        results['ticker'] = ticker
-        results['start_date'] = start_date
-        results['end_date'] = end_date
-        results['strategy_params'] = strategy_params
-        results['risk_params'] = risk_params
-        
-        return results
-        
-    except Exception as e:
-        st.error(f"Error during backtesting: {str(e)}")
-        return None
+
+
