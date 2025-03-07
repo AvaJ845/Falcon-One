@@ -9,7 +9,41 @@ try:
     import yfinance as yf
 except ImportError:
     st.error("yfinance package is not installed. Please run: pip install yfinance")
+
+# Initialize session state
+if 'use_mock_data' not in st.session_state:
+    st.session_state.use_mock_data = False
+
+def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5):
+    """Fetch stock data with improved error handling"""
     
+    # Check session state for mock data preference
+    if st.session_state.get('use_mock_data', False):
+        return generate_mock_data(ticker, period, interval)
+    
+    for attempt in range(max_retries):
+        try:
+            stock = yf.Ticker(ticker)
+            df = stock.history(
+                period=period if not start else None,
+                interval=interval,
+                start=start,
+                end=end,
+                timeout=10
+            )
+            
+            if not df.empty and len(df) >= 2:
+                return df
+            
+            time.sleep(2)
+        except Exception as e:
+            if attempt == max_retries - 1:
+                st.warning(f"Failed to fetch {ticker} data, using mock data")
+                return generate_mock_data(ticker, period, interval)
+            time.sleep(2)
+    
+    return generate_mock_data(ticker, period, interval)
+
 def generate_mock_data(ticker, period="1d", interval="1m"):
     """
     Generate mock stock data for demonstration purposes
