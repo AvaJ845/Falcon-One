@@ -77,48 +77,85 @@ def generate_mock_data(ticker, period="1d", interval="1m"):
     df = df.sort_index()
     
     return df
+#stock_data.py
+import yfinance as yf
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import streamlit as st
+import time
 
-@st.cache_data(ttl=600)  # Cache data for 10 minutes
-def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5, use_mock_data=False):
+def generate_mock_data(ticker, period="1d", interval="1m"):
     """
-    Fetch stock data for the given ticker with improved error handling
+    Generate mock stock data for demonstration purposes
     
     Parameters:
     ticker (str): Stock ticker symbol
-    period (str): Time period to fetch data for (default: 1 day)
-    interval (str): Data interval (default: 1 minute)
-    start (str): Start date in YYYY-MM-DD format (overrides period if provided)
-    end (str): End date in YYYY-MM-DD format
-    max_retries (int): Maximum number of retry attempts
-    use_mock_data (bool): Force use of mock data even if API is working
+    period (str): Time period to generate data for
+    interval (str): Data interval
     
     Returns:
-    pandas.DataFrame: DataFrame containing stock price data
+    pandas.DataFrame: DataFrame containing mock stock price data
     """
-    # If mock data is requested, generate it directly
-    if use_mock_data:
-        return generate_mock_data(ticker, period, interval)
+    # Determine number of data points based on period and interval
+    periods_map = {"1d": 390, "5d": 5*390, "1mo": 21*390, "3mo": 63*390}
+    intervals_map = {"1m": 1, "2m": 2, "5m": 5, "15m": 15, "30m": 30, "1h": 60, "1d": 390}
     
-    retry_count = 0
-    while retry_count < max_retries:
-        try:
-            # Add timeout parameter
-            stock = yf.Ticker(ticker)
-            
-            if start and end:
-                df = stock.history(start=start, end=end, interval=interval, timeout=10)
-            else:
-                df = stock.history(period=period, interval=interval, timeout=10)
-            
-            # Check if dataframe is empty or contains minimal data
-            if df.empty or len(df) < 2:
-                retry_count += 1
-                if retry_count >= max_retries:
-                    # Return mock data if all retries fail
-                    st.warning(f"Insufficient data for {ticker} after {max_retries} attempts. Using mock data.")
-                    return generate_mock_data(ticker, period, interval)
-                time.sleep(2)  # Longer wait before retrying
-
+    if period in periods_map and interval in intervals_map:
+        n_points = periods_map[period] // intervals_map[interval]
+    else:
+        n_points = 100  # Default
+    
+    # Generate dates
+    end_date = datetime.now()
+    if interval == "1d":
+        # For daily data
+        dates = [end_date - timedelta(days=i) for i in range(n_points)]
+    else:
+        # For intraday data
+        dates = [end_date - timedelta(minutes=i*intervals_map.get(interval, 5)) for i in range(n_points)]
+    dates = sorted(dates)
+    
+    # Generate price data
+    base_price = 100  # Default price
+    if ticker == "AAPL": base_price = 180
+    elif ticker == "MSFT": base_price = 320
+    elif ticker == "GOOGL": base_price = 130
+    elif ticker == "AMZN": base_price = 150
+    elif ticker == "TSLA": base_price = 240
+    elif ticker == "META": base_price = 490
+    elif ticker == "NVDA": base_price = 850
+    
+    # Create mock price movement with some randomness based on ticker
+    np.random.seed(hash(ticker) % 10000)  # Consistent randomness per ticker
+    volatility = 0.01  # Base volatility 1%
+    
+    # Adjust volatility based on ticker (some stocks are more volatile)
+    if ticker in ["TSLA", "NVDA", "COIN"]:
+        volatility = 0.02  # Higher volatility stocks
+    
+    changes = np.random.normal(0, 1, n_points) * base_price * volatility
+    prices = [base_price]
+    for change in changes:
+        prices.append(max(0.1, prices[-1] + change))
+    prices = prices[1:]  # Remove the initial base price
+    
+    # Create OHLC data
+    data = {
+        'Open': prices,
+        'Close': [p * (1 + np.random.normal(0, 0.002)) for p in prices],
+        'High': [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+        'Low': [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+        'Volume': [int(np.random.normal(1000000, 500000)) for _ in range(n_points)]
+    }
+    
+    # Create DataFrame
+    df = pd.DataFrame(data, index=dates)
+    
+    # Ensure data is properly sorted by date
+    df = df.sort_index()
+    
+    return df
 def get_stock_info(ticker, max_retries=3):
     """
     Get comprehensive stock information
@@ -221,8 +258,6 @@ def get_stock_info(ticker, max_retries=3):
                     'analyst_target': current_price * (1 + np.random.normal(0, 0.1))  # Realistic target price
                 }
             time.sleep(1)  # Wait before retrying
-
-
 def calculate_historical_volatility(ticker, days=20, max_retries=3):
     """
     Calculate historical volatility for a given stock
@@ -350,8 +385,6 @@ def get_intraday_volatility(ticker, days=5, max_retries=3):
                 else:
                     return np.random.uniform(0.8, 1.5)  # Lower volatility stocks
             time.sleep(1)
-
-
 def get_best_day_trading_stocks():
     """
     Get a list of stocks that are good for day trading
@@ -540,11 +573,4 @@ def get_day_trading_metrics(ticker, max_retries=3):
                     'best_entry_time': best_entry_time,
                     'liquidity_score': liquidity_score
                 }
-            time.sleep(1)  # Wait before retrying# Longer wait before retrying                
-            return df
-        except Exception as e:
-            retry_count += 1
-            if retry_count >= max_retries:
-                st.warning(f"Error fetching data for {ticker} after {max_retries} attempts: {str(e)}. Using mock data.")
-                return generate_mock_data(ticker, period, interval)
-            time.sleep(2)
+            time.sleep(1)  # Wait before retrying
