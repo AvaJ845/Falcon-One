@@ -16,7 +16,7 @@ from stock_data import (
 
 from technical_analysis import calculate_technical_indicators, analyze_stock
 
-def scan_for_day_trading_opportunities(scanner_type="Momentum Scanner", min_price=5.0, max_price=200.0, min_volume=500000):
+def scan_for_day_trading_opportunities(scanner_type="Momentum Scanner", min_price=5.0, max_price=200.0, min_volume=500000, use_mock_data=False):
     """
     Scan for day trading opportunities based on the selected scanner type
     
@@ -25,6 +25,7 @@ def scan_for_day_trading_opportunities(scanner_type="Momentum Scanner", min_pric
     min_price (float): Minimum stock price
     max_price (float): Maximum stock price
     min_volume (int): Minimum daily volume
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     DataFrame: DataFrame containing scan results
@@ -40,7 +41,7 @@ def scan_for_day_trading_opportunities(scanner_type="Momentum Scanner", min_pric
     for ticker in day_trading_candidates:
         try:
             # Fetch basic stock data
-            stock_data = fetch_stock_data(ticker, period="5d")
+            stock_data = fetch_stock_data(ticker, period="5d", use_mock_data=use_mock_data)
             
             if stock_data.empty:
                 continue
@@ -125,10 +126,13 @@ def scan_for_day_trading_opportunities(scanner_type="Momentum Scanner", min_pric
     
     return results_df
 
-def get_weekly_picks():
+def get_weekly_picks(use_mock_data=False):
     """
     Generate weekly top picks for day trading based on technical analysis,
     volatility, and historical performance
+    
+    Parameters:
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     DataFrame: DataFrame with weekly picks and expected gains
@@ -144,12 +148,12 @@ def get_weekly_picks():
             stock_info = get_stock_info(ticker)
             
             # Get technical analysis
-            stock_data = fetch_stock_data(ticker, period="1mo")
+            stock_data = fetch_stock_data(ticker, period="1mo", use_mock_data=use_mock_data)
             
             if stock_data.empty:
                 continue
                 
-            analysis_results, _ = analyze_stock(ticker, period="1mo")
+            analysis_results, _ = analyze_stock(ticker, period="1mo", use_mock_data=use_mock_data)
             
             # Calculate volatility and day trading metrics
             volatility = calculate_historical_volatility(ticker)
@@ -251,9 +255,12 @@ def get_sector_performance():
     
     return sector_df
 
-def get_trading_opportunities_by_timeframe():
+def get_trading_opportunities_by_timeframe(use_mock_data=False):
     """
     Get trading opportunities categorized by optimal trading timeframe
+    
+    Parameters:
+    use_mock_data (bool): If True, use mock data instead of real data
     
     Returns:
     dict: Dictionary containing lists of stocks by timeframe
@@ -273,7 +280,7 @@ def get_trading_opportunities_by_timeframe():
     for ticker in candidates:
         try:
             # Fetch intraday data (would be more extensive in production)
-            intraday_data = fetch_stock_data(ticker, period="5d", interval="15m")
+            intraday_data = fetch_stock_data(ticker, period="5d", interval="15m", use_mock_data=use_mock_data)
             
             if intraday_data.empty:
                 continue

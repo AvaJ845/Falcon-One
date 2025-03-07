@@ -650,3 +650,135 @@ def get_stock_technical_score(ticker):
     except Exception as e:
         st.warning(f"Error calculating technical score for {ticker}: {str(e)}")
         return {'overall_score': 50, 'rating': 'Average', 'breakdown': {}}
+    
+# This is a partial update to technical_analysis.py - just updating the key function
+
+def analyze_stock(ticker, period="1d", interval="5m", use_mock_data=False):
+    """
+    Analyze a stock and generate trading signals
+    
+    Parameters:
+    ticker (str): Stock ticker symbol
+    period (str): Time period to analyze
+    interval (str): Data interval
+    use_mock_data (bool): If True, use mock data instead of real data
+    
+    Returns:
+    dict: Dictionary containing analysis results
+    DataFrame: Stock data with indicators
+    """
+    # Fetch stock data
+    stock_data = fetch_stock_data(ticker, period=period, interval=interval, use_mock_data=use_mock_data)
+    
+    if stock_data.empty:
+        return {}, pd.DataFrame()
+    
+    # Calculate indicators
+    indicators = calculate_technical_indicators(
+        stock_data, 
+        ['SMA20', 'SMA50', 'EMA9', 'RSI', 'MACD', 'Bollinger Bands', 'ATR']
+    )
+    
+    # Get stock info
+    stock_info = get_stock_info(ticker)
+    
+    # Get current and previous price
+    current_price = stock_data['Close'].iloc[-1]
+    prev_price = stock_data['Close'].iloc[-2] if len(stock_data) > 1 else current_price
+    price_change = ((current_price / prev_price) - 1) * 100
+    
+    # Get current volume
+    current_volume = stock_data['Volume'].iloc[-1] if 'Volume' in stock_data.columns else 0
+    prev_volume = stock_data['Volume'].iloc[-2] if 'Volume' in stock_data.columns and len(stock_data) > 1 else current_volume
+    volume_change = ((current_volume / prev_volume) - 1) * 100 if prev_volume > 0 else 0
+    
+    # Calculate volatility
+    if len(stock_data) >= 20:
+        returns = stock_data['Close'].pct_change().dropna()
+        volatility = returns.std() * np.sqrt(252) * 100  # Annualized volatility as percentage
+    else:
+        volatility = 0.0
+    
+    # Generate signals
+    signals = {}
+    
+    # Moving Average signals
+    if 'SMA20' in indicators and 'SMA50' in indicators:
+        sma20 = indicators['SMA20'].iloc[-1]
+        sma50 = indicators['SMA50'].iloc[-1]
+        
+        # Price relative to moving averages
+        signals['Price vs SMA20'] = 'Buy' if current_price > sma20 else 'Sell'
+        signals['Price vs SMA50'] = 'Buy' if current_price > sma50 else 'Sell'
+        
+        # Moving average crossover
+        signals['SMA20 vs SMA50'] = 'Buy' if sma20 > sma50 else 'Sell'
+    
+    # RSI signals
+    if 'RSI' in indicators:
+        rsi = indicators['RSI'].iloc[-1]
+        
+        if rsi > 70:
+            signals['RSI'] = 'Sell'  # Overbought
+        elif rsi < 30:
+            signals['RSI'] = 'Buy'   # Oversold
+        else:
+            signals['RSI'] = 'Neutral'
+    
+    # MACD signals
+    if 'MACD' in indicators:
+        macd_line = indicators['MACD']['MACD Line'].iloc[-1]
+        signal_line = indicators['MACD']['Signal Line'].iloc[-1]
+        histogram = indicators['MACD']['Histogram'].iloc[-1]
+        
+        if macd_line > signal_line:
+            signals['MACD'] = 'Buy'
+        else:
+            signals['MACD'] = 'Sell'
+    
+    # Bollinger Band signals
+    if 'Bollinger Bands' in indicators:
+        upper_band = indicators['Bollinger Bands']['Upper Band'].iloc[-1]
+        lower_band = indicators['Bollinger Bands']['Lower Band'].iloc[-1]
+        
+        if current_price > upper_band:
+            signals['Bollinger Bands'] = 'Sell'  # Price above upper band
+        elif current_price < lower_band:
+            signals['Bollinger Bands'] = 'Buy'   # Price below lower band
+        else:
+            signals['Bollinger Bands'] = 'Neutral'
+    
+    # Generate overall recommendation
+    buy_signals = sum(1 for signal in signals.values() if signal == 'Buy')
+    sell_signals = sum(1 for signal in signals.values() if signal == 'Sell')
+    
+    if buy_signals >= sell_signals + 2:
+        recommendation = 'Strong Buy'
+    elif buy_signals > sell_signals:
+        recommendation = 'Buy'
+    elif sell_signals >= buy_signals + 2:
+        recommendation = 'Strong Sell'
+    elif sell_signals > buy_signals:
+        recommendation = 'Sell'
+    else:
+        recommendation = 'Neutral'
+    
+    # Get day trading specific metrics
+    day_trading_metrics = get_day_trading_metrics(ticker)
+    
+    # Compile results
+    analysis_results = {
+        'ticker': ticker,
+        'name': stock_info.get('name', ticker),
+        'current_price': current_price,
+        'price_change': price_change,
+        'volume': current_volume,
+        'volume_change': volume_change,
+        'volatility': volatility,
+        'signals': signals,
+        'recommendation': recommendation,
+        'indicators': {k: v.iloc[-1] if isinstance(v, pd.Series) else v for k, v in indicators.items()},
+        'day_trading': day_trading_metrics
+    }
+    
+    return analysis_results, stock_data

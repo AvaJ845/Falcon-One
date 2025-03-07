@@ -17,6 +17,7 @@ from dashboard import create_dashboard
 from performance_tracker import display_performance_metrics, log_trade
 from strategy_analyzer import backtest_strategy, display_strategy_results
 from market_sentiment import get_market_sentiment, analyze_news_sentiment
+from data_settings import initialize_data_settings, get_data_mode, add_data_settings_ui
 
 # Set page configuration
 st.set_page_config(
@@ -24,6 +25,9 @@ st.set_page_config(
     page_icon="🪿",
     layout="wide"
 )
+
+# Initialize data settings
+initialize_data_settings()
 
 # App title and branding
 st.markdown("""
@@ -113,6 +117,14 @@ page = st.sidebar.radio("Select a page:", [
     "Performance Analytics"
 ])
 
+# Add data settings UI to the sidebar
+add_data_settings_ui()
+
+# Data mode indicator
+data_mode = get_data_mode()
+if data_mode:
+    st.info("🔔 Currently using MOCK DATA for demonstration purposes. Toggle in sidebar to use real data.")
+
 # Check if weekly picks need to be updated (once per week)
 def update_weekly_picks():
     current_date = datetime.now().date()
@@ -121,7 +133,7 @@ def update_weekly_picks():
     if (st.session_state.weekly_picks_date is None or 
         (current_date - datetime.strptime(st.session_state.weekly_picks_date, '%Y-%m-%d').date()).days >= 7):
         with st.spinner("Generating weekly picks..."):
-            weekly_picks = get_weekly_picks()
+            weekly_picks = get_weekly_picks(use_mock_data=data_mode)
             if not weekly_picks.empty:
                 st.session_state.weekly_picks = weekly_picks.to_dict('records')
                 st.session_state.weekly_picks_date = current_date.strftime('%Y-%m-%d')
@@ -133,7 +145,7 @@ update_weekly_picks()
 
 # Dashboard page
 if page == "Dashboard":
-    create_dashboard()
+    create_dashboard(use_mock_data=data_mode)
 
 # Day Trading Scanner page
 elif page == "Day Trading Scanner":
@@ -164,7 +176,8 @@ elif page == "Day Trading Scanner":
                 scanner_type=scanner_type,
                 min_price=min_price,
                 max_price=max_price,
-                min_volume=min_volume
+                min_volume=min_volume,
+                use_mock_data=data_mode
             )
             
             if not opportunities.empty:
@@ -197,7 +210,7 @@ elif page == "Day Trading Scanner":
                     with col2:
                         # Show mini chart
                         try:
-                            stock_data = fetch_stock_data(row['Symbol'], period="5d", interval="15m")
+                            stock_data = fetch_stock_data(row['Symbol'], period="5d", interval="15m", use_mock_data=data_mode)
                             fig = px.line(
                                 stock_data, 
                                 x=stock_data.index, 
@@ -297,7 +310,8 @@ elif page == "Technical Analysis":
                 analysis_results, stock_data = analyze_stock(
                     stock_input, 
                     period=time_frame, 
-                    interval=interval
+                    interval=interval,
+                    use_mock_data=data_mode
                 )
                 
                 if not stock_data.empty:
@@ -455,7 +469,7 @@ elif page == "Technical Analysis":
                     st.subheader("Market Sentiment Analysis")
                     
                     try:
-                        sentiment_data = get_market_sentiment(stock_input)
+                        sentiment_data = get_market_sentiment()
                         news_sentiment = analyze_news_sentiment(stock_input)
                         
                         col1, col2, col3 = st.columns(3)
@@ -617,7 +631,8 @@ elif page == "Strategy Backtester":
                 start_date.strftime('%Y-%m-%d'),
                 end_date.strftime('%Y-%m-%d'),
                 strategy_params,
-                risk_params
+                risk_params,
+                use_mock_data=data_mode
             )
             
             if backtest_results:
@@ -634,7 +649,8 @@ elif page == "Paper Trading":
     simulator = PaperTradingSimulator(
         initial_balance=st.session_state.account_balance,
         trades=st.session_state.paper_trades,
-        trade_history=st.session_state.trade_history
+        trade_history=st.session_state.trade_history,
+        use_mock_data=data_mode
     )
     
     # Paper Trading Interface
@@ -722,7 +738,7 @@ elif page == "Paper Trading":
                 if trade['status'] == 'open':
                     # Get current price
                     try:
-                        current_data = fetch_stock_data(trade['symbol'], period="1d")
+                        current_data = fetch_stock_data(trade['symbol'], period="1d", use_mock_data=data_mode)
                         current_price = current_data['Close'].iloc[-1]
                         
                         if trade['trade_type'] == 'buy':
@@ -752,7 +768,7 @@ elif page == "Paper Trading":
                 with col2:
                     # Get current price
                     try:
-                        current_data = fetch_stock_data(trade['symbol'], period="1d")
+                        current_data = fetch_stock_data(trade['symbol'], period="1d", use_mock_data=data_mode)
                         current_price = current_data['Close'].iloc[-1]
                         price_change = ((current_price / trade['price']) - 1) * 100
                         st.metric("Current Price", f"${current_price:.2f}", f"{price_change:.2f}%")
@@ -795,7 +811,7 @@ elif page == "Paper Trading":
                 with col2:
                     # Get current price and P&L
                     try:
-                        current_data = fetch_stock_data(trade['symbol'], period="1d")
+                        current_data = fetch_stock_data(trade['symbol'], period="1d", use_mock_data=data_mode)
                         current_price = current_data['Close'].iloc[-1]
                         
                         if trade['trade_type'] == 'buy':

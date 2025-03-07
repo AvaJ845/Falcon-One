@@ -1633,3 +1633,102 @@ def display_optimization_results(optimization_results):
     3. **Look for Patterns**: Check if certain parameter values consistently perform better
     4. **Combine Strategies**: Consider combining strategies for better overall performance
     """)
+# This is a partial update to strategy_analyzer.py - just updating the key function
+
+def backtest_strategy(ticker, strategy_type, start_date, end_date, strategy_params, risk_params, use_mock_data=False):
+    """
+    Backtest a trading strategy on historical data
+    
+    Parameters:
+    ticker (str): Stock ticker symbol
+    strategy_type (str): Type of strategy to backtest
+    start_date (str): Start date for backtesting (YYYY-MM-DD)
+    end_date (str): End date for backtesting (YYYY-MM-DD)
+    strategy_params (dict): Strategy-specific parameters
+    risk_params (dict): Risk management parameters
+    use_mock_data (bool): If True, use mock data instead of real data
+    
+    Returns:
+    dict: Backtesting results
+    """
+    try:
+        # Fetch historical data
+        stock_data = fetch_stock_data(
+            ticker, 
+            interval="15m",
+            start=start_date,
+            end=end_date,
+            use_mock_data=use_mock_data
+        )
+        
+        if stock_data.empty:
+            st.error(f"Could not fetch sufficient data for {ticker}")
+            return None
+        
+        # Add date column for grouping
+        stock_data['date'] = stock_data.index.date
+        
+        # Initialize results
+        trades = []
+        cash = 100000  # Starting capital
+        position = 0   # Current position (number of shares)
+        entry_price = 0  # Entry price for position
+        
+        # Apply the selected strategy
+        if strategy_type == "Moving Average Crossover":
+            results = backtest_ma_crossover(
+                stock_data,
+                strategy_params,
+                risk_params,
+                initial_cash=cash
+            )
+            
+        elif strategy_type == "RSI Reversal":
+            results = backtest_rsi_reversal(
+                stock_data,
+                strategy_params,
+                risk_params,
+                initial_cash=cash
+            )
+            
+        elif strategy_type == "VWAP Bounce":
+            results = backtest_vwap_bounce(
+                stock_data,
+                strategy_params,
+                risk_params,
+                initial_cash=cash
+            )
+            
+        elif strategy_type == "Breakout":
+            results = backtest_breakout(
+                stock_data,
+                strategy_params,
+                risk_params,
+                initial_cash=cash
+            )
+            
+        elif strategy_type == "Gap and Go":
+            results = backtest_gap_and_go(
+                stock_data,
+                strategy_params,
+                risk_params,
+                initial_cash=cash
+            )
+        
+        else:
+            st.error(f"Strategy '{strategy_type}' not implemented")
+            return None
+        
+        # Add strategy parameters to results
+        results['strategy'] = strategy_type
+        results['ticker'] = ticker
+        results['start_date'] = start_date
+        results['end_date'] = end_date
+        results['strategy_params'] = strategy_params
+        results['risk_params'] = risk_params
+        
+        return results
+        
+    except Exception as e:
+        st.error(f"Error during backtesting: {str(e)}")
+        return None
