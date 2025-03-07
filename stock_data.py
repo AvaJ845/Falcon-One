@@ -3,8 +3,6 @@
 Stock market data module for Falcon One trading platform.
 Provides functionality for fetching, analyzing and simulating stock market data.
 """
-
-
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -219,57 +217,6 @@ def generate_mock_data(ticker, period="1d", interval="1m"):
     # Ensure data is properly sorted by date
     df = df.sort_index()
     
-    return df
-
-def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5, use_mock_data=False):
-    """
-    Fetch stock data for the given ticker with improved error handling
-    
-    Parameters:
-    ticker (str): Stock ticker symbol
-    period (str): Time period to fetch data for (default: 1 day)
-    interval (str): Data interval (default: 1 minute)
-    start (str): Start date in YYYY-MM-DD format (overrides period if provided)
-    end (str): End date in YYYY-MM-DD format
-    max_retries (int): Maximum number of retry attempts
-    use_mock_data (bool): Force use of mock data even if API is working
-    
-    Returns:
-    pandas.DataFrame: DataFrame containing stock price data
-    """
-    # If mock data is requested, generate it directly
-    if use_mock_data:
-        return generate_mock_data(ticker, period, interval)
-    
-    retry_count = 0
-    while retry_count < max_retries:
-        try:
-            # Add timeout parameter
-            stock = yf.Ticker(ticker)
-            
-            if start and end:
-                df = stock.history(start=start, end=end, interval=interval, timeout=10)
-            else:
-                df = stock.history(period=period, interval=interval, timeout=10)
-            
-            # Check if dataframe is empty or contains minimal data
-            if df.empty or len(df) < 2:
-                retry_count += 1
-                if retry_count >= max_retries:
-                    # Return mock data if all retries fail
-                    st.warning(f"Insufficient data for {ticker} after {max_retries} attempts. Using mock data.")
-                    return generate_mock_data(ticker, period, interval)
-                time.sleep(2)  # Longer wait before retrying
-                continue
-                
-            return df
-        except Exception as e:
-            retry_count += 1
-            if retry_count >= max_retries:
-                st.warning(f"Error fetching data for {ticker} after {max_retries} attempts: {str(e)}. Using mock data.")
-                return generate_mock_data(ticker, period, interval)
-            time.sleep(2)  # Longer wait before retrying
-
 def get_stock_info(ticker, max_retries=3):
     """
     Get comprehensive stock information
