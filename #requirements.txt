@@ -1,0 +1,23 @@
+# Core requirements
+streamlit
+pandas
+numpy
+matplotlib
+plotly
+yfinance
+
+# Data analysis and technical indicators
+scipy
+scikit-learn
+statsmodels
+
+# Date and time handling
+python-dateutil
+
+# Utilities
+tqdm
+
+# Optional - for more advanced features
+requests
+beautifulsoup4
+lxml
