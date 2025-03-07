@@ -44,7 +44,7 @@ def get_valid_market_time(dt):
 
 def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5, use_mock_data=False):
     """
-    Fetch stock data for the given ticker with improved error handling
+    Fetch stock data for the given ticker with improved error handling for Yahoo Finance limitations
     
     Parameters:
     ticker (str): Stock ticker symbol
@@ -62,23 +62,39 @@ def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, m
     if use_mock_data:
         return generate_mock_data(ticker, period, interval)
     
-    # Handle 1-minute interval limitation (max 4 days)
-    if interval == "1m" and period in ["1mo", "3mo", "5d"]:
-        st.warning(f"Yahoo Finance limits 1-minute data to 4 days. Using mock data for {period} period.")
+    # Handle 1-minute interval limitation
+    # For any period longer than "1d" with 1m interval, use mock data
+    if interval == "1m" and period not in ["1d"]:
+        st.warning(f"Yahoo Finance has strict limits on 1-minute data. Using mock data for {period} period.")
         return generate_mock_data(ticker, period, interval)
     
-    # For 1-minute data with date range, check if range exceeds 4 days
+    # For 2-minute interval with periods longer than 5d
+    if interval == "2m" and period not in ["1d", "5d"]:
+        st.warning(f"Yahoo Finance has limits on 2-minute data. Using mock data for {period} period.")
+        return generate_mock_data(ticker, period, interval)
+    
+    # For 1-minute data with date range, check if range exceeds 1 day (being very conservative)
     if interval == "1m" and start and end:
         try:
             start_date = datetime.strptime(start, '%Y-%m-%d')
             end_date = datetime.strptime(end, '%Y-%m-%d')
             days_diff = (end_date - start_date).days
             
-            if days_diff > 4:
-                st.warning(f"Yahoo Finance limits 1-minute data to 4 days. Using mock data for {days_diff} day range.")
+            if days_diff > 1:
+                st.warning(f"Yahoo Finance limits 1-minute data. Using mock data for {days_diff} day range.")
                 return generate_mock_data(ticker, period, interval)
         except:
             pass  # If date parsing fails, continue with regular fetch attempt
+    
+    # Adjust interval based on period to avoid Yahoo Finance limitations
+    adjusted_interval = interval
+    if period == "1mo" and interval in ["1m", "2m", "5m", "15m"]:
+        adjusted_interval = "1h"  # Use hourly data for month-long periods
+        st.info(f"Adjusted interval from {interval} to {adjusted_interval} for {period} period to comply with Yahoo Finance limits")
+    
+    elif period == "3mo" and interval in ["1m", "2m", "5m", "15m", "30m", "1h"]:
+        adjusted_interval = "1d"  # Use daily data for 3-month periods
+        st.info(f"Adjusted interval from {interval} to {adjusted_interval} for {period} period to comply with Yahoo Finance limits")
     
     retry_count = 0
     while retry_count < max_retries:
@@ -87,9 +103,9 @@ def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, m
             stock = yf.Ticker(ticker)
             
             if start and end:
-                df = stock.history(start=start, end=end, interval=interval, timeout=10)
+                df = stock.history(start=start, end=end, interval=adjusted_interval, timeout=10)
             else:
-                df = stock.history(period=period, interval=interval, timeout=10)
+                df = stock.history(period=period, interval=adjusted_interval, timeout=10)
             
             # Check if dataframe is empty or contains minimal data
             if df.empty or len(df) < 2:
