@@ -44,7 +44,7 @@ def get_valid_market_time(dt):
 
 def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=5, use_mock_data=False):
     """
-    Fetch stock data for the given ticker, adjusting intervals to comply with Yahoo Finance limitations
+    Fetch stock data with strict enforcement of Yahoo Finance limits
     
     Parameters:
     ticker (str): Stock ticker symbol
@@ -62,73 +62,91 @@ def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, m
     if use_mock_data:
         return generate_mock_data(ticker, period, interval)
     
-    # Adjust interval for known Yahoo Finance limitations
+    # Apply strict interval adjustments based on Yahoo Finance's known limits
     original_interval = interval
-    adjusted_interval = interval
+    original_period = period
     
-    # For 1-minute data, adjust to 5-minute for periods longer than 7 days
-    if interval == "1m":
-        if period in ["1mo", "3mo"]:
-            adjusted_interval = "5m"
-        elif start and end:
-            try:
-                start_date = datetime.strptime(start, '%Y-%m-%d')
-                end_date = datetime.strptime(end, '%Y-%m-%d')
-                days_diff = (end_date - start_date).days
-                
-                if days_diff > 7:
-                    adjusted_interval = "5m"
-            except:
-                # If date parsing fails, be cautious and use 5m
-                adjusted_interval = "5m"
+    # Strict interval adjustment rules for Yahoo Finance
     
-    # Further adjust if needed for very long periods
-    if period == "3mo" and adjusted_interval == "5m":
-        adjusted_interval = "15m"  # Use 15-minute data for 3-month periods
+    # For date range requests, calculate days difference and adjust accordingly
+    days_diff = 0
+    if start and end:
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d')
+            end_date = datetime.strptime(end, '%Y-%m-%d')
+            days_diff = (end_date - start_date).days
+        except:
+            days_diff = 30  # Default to 30 days if parsing fails
     
-    # Inform the user if we adjusted the interval
-    if adjusted_interval != original_interval:
-        st.info(f"Adjusted interval from {original_interval} to {adjusted_interval} to comply with Yahoo Finance limits")
+        # Apply strict interval rules for date ranges
+        if days_diff > 60 and interval in ["1m", "2m", "5m", "15m", "30m"]:
+            interval = "1d"  # Use daily data for ranges > 60 days
+        elif days_diff > 30 and interval in ["1m", "2m", "5m"]:
+            interval = "1h"  # Use hourly data for ranges > 30 days
+        elif days_diff > 7 and interval == "1m":
+            interval = "30m"  # Use 30-minute data for ranges > 7 days
     
+    # Apply strict interval rules for period-based requests
+    elif period:
+        if period == "1mo" and interval in ["1m", "2m"]:
+            interval = "1h"  # Use hourly data for 1-month period
+        elif period == "3mo" and interval in ["1m", "2m", "5m", "15m", "30m"]:
+            interval = "1d"  # Use daily data for 3-month period
+        elif period == "5d" and interval == "1m":
+            interval = "15m"  # Use 15-minute data for 5-day period
+    
+    # Log the interval adjustment if changed
+    if interval != original_interval:
+        st.info(f"Interval automatically adjusted from {original_interval} to {interval} to comply with Yahoo Finance limits")
+    
+    # Attempt to fetch with adjusted interval
     retry_count = 0
     while retry_count < max_retries:
         try:
-            # Add timeout parameter
             stock = yf.Ticker(ticker)
             
             if start and end:
-                df = stock.history(start=start, end=end, interval=adjusted_interval, timeout=15)
+                df = stock.history(start=start, end=end, interval=interval, timeout=15)
             else:
-                df = stock.history(period=period, interval=adjusted_interval, timeout=15)
+                df = stock.history(period=period, interval=interval, timeout=15)
             
-            # Check if dataframe is empty or contains minimal data
+            # Check if dataframe is empty or too small
             if df.empty or len(df) < 2:
                 retry_count += 1
                 if retry_count >= max_retries:
                     # Return mock data if all retries fail
                     st.warning(f"Insufficient data for {ticker} after {max_retries} attempts. Using mock data.")
-                    return generate_mock_data(ticker, period, original_interval)
-                time.sleep(2)  # Longer wait before retrying
+                    return generate_mock_data(ticker, original_period, original_interval)
+                time.sleep(2)  # Wait before retrying
                 continue
                 
             return df
         except Exception as e:
+            error_msg = str(e)
             retry_count += 1
-            # If the error is about interval limits, try with a larger interval
-            if "Only 8 days worth of 1m granularity data" in str(e) and adjusted_interval == "1m":
-                adjusted_interval = "5m"
-                st.warning(f"Yahoo Finance 1m limit exceeded. Trying with {adjusted_interval} interval.")
-                continue
-            elif "Only 60 days worth of 5m granularity data" in str(e) and adjusted_interval == "5m":
-                adjusted_interval = "15m"
-                st.warning(f"Yahoo Finance 5m limit exceeded. Trying with {adjusted_interval} interval.")
-                continue
             
+            # Parse Yahoo Finance error messages and adjust intervals dynamically
+            if "1m data not available" in error_msg or "granularity data are allowed" in error_msg:
+                if interval == "1m":
+                    interval = "15m"
+                elif interval == "5m":
+                    interval = "30m"
+                elif interval == "15m":
+                    interval = "1h"
+                elif interval == "30m":
+                    interval = "1d"
+                else:
+                    interval = "1d"
+                
+                st.warning(f"Yahoo Finance API limit hit. Adjusted to {interval} interval.")
+                continue  # Try again with new interval
+            
+            # If we've exhausted all retries, use mock data
             if retry_count >= max_retries:
-                st.warning(f"Error fetching data for {ticker}: {str(e)}. Using mock data as last resort.")
-                return generate_mock_data(ticker, period, original_interval)
+                st.warning(f"Error fetching data for {ticker}: {error_msg}. Using mock data as last resort.")
+                return generate_mock_data(ticker, original_period, original_interval)
             
-            time.sleep(2)  # Longer wait before retrying
+            time.sleep(2)  # Wait before retrying
 
 
 def generate_mock_data(ticker, period="1d", interval="1m"):
