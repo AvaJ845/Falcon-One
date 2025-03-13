@@ -1,5 +1,6 @@
 # stock_data.py
 """
+"""
 Stock market data module for Falcon One trading platform.
 Provides functionality for fetching, analyzing and simulating stock market data.
 """
@@ -41,8 +42,8 @@ def get_valid_market_time(dt):
     elif dt.hour >= 16:
         dt = dt.replace(hour=16, minute=0)
     return dt
-
-def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=3, use_mock_data=False):
+    
+    def fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=None, max_retries=3, use_mock_data=False):
     """
     Fetch stock data with strict enforcement of Yahoo Finance limits
     
@@ -148,8 +149,7 @@ def cached_fetch_stock_data(ticker, period="1d", interval="1m", start=None, end=
     Cached version of fetch_stock_data to reduce redundant API calls
     """
     return fetch_stock_data(ticker, period, interval, start, end)
-
-
+    
 def generate_mock_data(ticker, period="1d", interval="1m"):
     """
     Generate mock stock data for demonstration purposes
@@ -219,6 +219,8 @@ def generate_mock_data(ticker, period="1d", interval="1m"):
     
     # Ensure data is properly sorted by date
     df = df.sort_index()
+    
+    return df  # CRITICAL FIX: Added return statement
     
 def get_stock_info(ticker, max_retries=3):
     """
@@ -450,7 +452,7 @@ def get_intraday_volatility(ticker, days=5, max_retries=3):
                 else:
                     return np.random.uniform(0.8, 1.5)  # Lower volatility stocks
             time.sleep(1)
-
+            
 def get_best_day_trading_stocks():
     """
     Get a list of stocks that are good for day trading
@@ -594,8 +596,8 @@ def get_day_trading_metrics(ticker, max_retries=3):
                 metrics['liquidity_score'] = round(volume_score)
             
             return metrics
-        
-        except Exception as e:
+            
+except Exception as e:
             retry_count += 1
             if retry_count >= max_retries:
                 st.warning(f"Error calculating day trading metrics for {ticker}: {str(e)}")
